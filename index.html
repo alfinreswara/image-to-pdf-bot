@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image to PDF</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5ef;
+      --ink: #202124;
+      --muted: #62615c;
+      --line: #d8d3c5;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --panel: #fffdf8;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1040px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4.2rem);
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    .status {
+      min-width: min(360px, 100%);
+      color: var(--muted);
+      font-size: .95rem;
+      text-align: right;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 1fr;
+      gap: 20px;
+      margin-top: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .drop-zone {
+      display: grid;
+      place-items: center;
+      min-height: 300px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .16s ease, background .16s ease;
+    }
+
+    .drop-zone.dragging {
+      background: #e7f4f1;
+      border-color: var(--accent);
+    }
+
+    .drop-zone input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+
+    .drop-copy {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+    }
+
+    .drop-icon {
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 999px;
+      background: #cfe8e3;
+      color: var(--accent-dark);
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .drop-title {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .drop-subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: .88rem;
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 11px;
+      font: inherit;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    button {
+      min-height: 42px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0 13px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .primary:not(:disabled):hover {
+      background: var(--accent-dark);
+    }
+
+    .ghost {
+      border-color: var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .preview {
+      min-height: 520px;
+      padding: 16px;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 440px;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      text-align: center;
+      padding: 28px;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1.2;
+      object-fit: contain;
+      background: #ebe7dc;
+      display: block;
+    }
+
+    .meta {
+      display: grid;
+      gap: 7px;
+      padding: 10px;
+    }
+
+    .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .9rem;
+      font-weight: 700;
+    }
+
+    .item-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .icon-btn {
+      min-height: 34px;
+      padding: 0;
+      border-color: var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .icon-btn.remove {
+      color: var(--danger);
+    }
+
+    @media (max-width: 800px) {
+      main {
+        width: min(100% - 24px, 680px);
+      }
+
+      header {
+        display: grid;
+        align-items: start;
+      }
+
+      .status {
+        text-align: left;
+        min-width: 0;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .drop-zone {
+        min-height: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Image to PDF</h1>
+      <div class="status" id="status">Pilih gambar untuk mulai membuat PDF.</div>
+    </header>
+
+    <section class="workspace">
+      <div>
+        <label class="panel drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept="image/*" multiple>
+          <span class="drop-copy">
+            <span class="drop-icon">+</span>
+            <span class="drop-title">Pilih atau drop gambar</span>
+            <span class="drop-subtitle">JPG, PNG, WEBP, GIF, BMP, dan format gambar lain yang didukung browser.</span>
+          </span>
+        </label>
+
+        <div class="panel controls">
+          <label>
+            Nama file PDF
+            <input id="fileName" type="text" value="converted-images.pdf">
+          </label>
+
+          <label>
+            Ukuran halaman
+            <select id="pageMode">
+              <option value="image">Ikuti ukuran gambar</option>
+              <option value="a4">A4 portrait</option>
+              <option value="letter">Letter portrait</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button class="primary" id="convertButton" disabled>Buat PDF</button>
+            <button class="ghost" id="clearButton" disabled>Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel preview">
+        <div class="preview-header">
+          <h2>Preview</h2>
+          <span class="count" id="count">0 gambar</span>
+        </div>
+        <div id="list" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.querySelector("#fileInput");
+    const dropZone = document.querySelector("#dropZone");
+    const list = document.querySelector("#list");
+    const count = document.querySelector("#count");
+    const statusText = document.querySelector("#status");
+    const convertButton = document.querySelector("#convertButton");
+    const clearButton = document.querySelector("#clearButton");
+    const fileNameInput = document.querySelector("#fileName");
+    const pageModeInput = document.querySelector("#pageMode");
+
+    const images = [];
+
+    const pageSizes = {
+      a4: [595.28, 841.89],
+      letter: [612, 792],
+    };
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function normalizeFileName(value) {
+      const trimmed = value.trim() || "converted-images.pdf";
+      return trimmed.toLowerCase().endsWith(".pdf") ? trimmed : `${trimmed}.pdf`;
+    }
+
+    function renderList() {
+      list.innerHTML = "";
+      count.textContent = `${images.length} gambar`;
+      convertButton.disabled = images.length === 0;
+      clearButton.disabled = images.length === 0;
+
+      if (images.length === 0) {
+        list.className = "empty";
+        list.textContent = "Belum ada gambar.";
+        return;
+      }
+
+      list.className = "list";
+      images.forEach((image, index) => {
+        const item = document.createElement("article");
+        item.className = "item";
+
+        const thumb = document.createElement("img");
+        thumb.className = "thumb";
+        thumb.src = image.url;
+        thumb.alt = image.file.name;
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.title = image.file.name;
+        name.textContent = image.file.name;
+
+        const actions = document.createElement("div");
+        actions.className = "item-actions";
+
+        const up = makeItemButton("↑", "Naikkan urutan", () => moveImage(index, -1));
+        const down = makeItemButton("↓", "Turunkan urutan", () => moveImage(index, 1));
+        const remove = makeItemButton("×", "Hapus", () => removeImage(index));
+        remove.classList.add("remove");
+        up.disabled = index === 0;
+        down.disabled = index === images.length - 1;
+
+        actions.append(up, down, remove);
+        meta.append(name, actions);
+        item.append(thumb, meta);
+        list.append(item);
+      });
+    }
+
+    function makeItemButton(text, title, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "icon-btn";
+      button.textContent = text;
+      button.title = title;
+      button.addEventListener("click", onClick);
+      return button;
+    }
+
+    function moveImage(index, offset) {
+      const target = index + offset;
+      if (target < 0 || target >= images.length) return;
+      [images[index], images[target]] = [images[target], images[index]];
+      renderList();
+    }
+
+    function removeImage(index) {
+      const [removed] = images.splice(index, 1);
+      URL.revokeObjectURL(removed.url);
+      renderList();
+      setStatus(images.length ? "Urutan gambar siap dikonversi." : "Pilih gambar untuk mulai membuat PDF.");
+    }
+
+    function addFiles(files) {
+      const accepted = [...files].filter(file => file.type.startsWith("image/"));
+      accepted.forEach(file => {
+        images.push({ file, url: URL.createObjectURL(file) });
+      });
+      renderList();
+      setStatus(accepted.length ? `${accepted.length} gambar ditambahkan.` : "Tidak ada file gambar yang dipilih.");
+      fileInput.value = "";
+    }
+
+    async function readImageAsJpeg(file) {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const bytes = base64ToBinary(dataUrl.split(",")[1]);
+      return { bytes, width: canvas.width, height: canvas.height };
+    }
+
+    function base64ToBinary(base64) {
+      const raw = atob(base64);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i += 1) {
+        bytes[i] = raw.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function escapePdfText(text) {
+      return text.replace(/[\\()]/g, "\\$&");
+    }
+
+    function partLength(part) {
+      if (typeof part === "string") {
+        return new TextEncoder().encode(part).length;
+      }
+      return part.length;
+    }
+
+    function pushPart(parts, part) {
+      parts.push(part);
+      return partLength(part);
+    }
+
+    function getPageGeometry(image) {
+      const mode = pageModeInput.value;
+      if (mode === "image") {
+        const width = image.width * 0.75;
+        const height = image.height * 0.75;
+        return { pageWidth: width, pageHeight: height, imageWidth: width, imageHeight: height, x: 0, y: 0 };
+      }
+
+      const [pageWidth, pageHeight] = pageSizes[mode];
+      const scale = Math.min(pageWidth / image.width, pageHeight / image.height);
+      const imageWidth = image.width * scale;
+      const imageHeight = image.height * scale;
+      return {
+        pageWidth,
+        pageHeight,
+        imageWidth,
+        imageHeight,
+        x: (pageWidth - imageWidth) / 2,
+        y: (pageHeight - imageHeight) / 2,
+      };
+    }
+
+    function buildPdf(renderedImages) {
+      const objects = [];
+      const pageObjectNumbers = [];
+      const imageObjectNumbers = [];
+
+      objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+      objects[2] = "";
+
+      renderedImages.forEach((image, index) => {
+        const pageNumber = objects.length;
+        const contentNumber = pageNumber + 1;
+        const imageNumber = pageNumber + 2;
+        const geometry = getPageGeometry(image);
+        const imageName = `Im${index + 1}`;
+        const content = `q\n${geometry.imageWidth.toFixed(2)} 0 0 ${geometry.imageHeight.toFixed(2)} ${geometry.x.toFixed(2)} ${geometry.y.toFixed(2)} cm\n/${imageName} Do\nQ`;
+
+        objects[pageNumber] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${geometry.pageWidth.toFixed(2)} ${geometry.pageHeight.toFixed(2)}] /Resources << /XObject << /${imageName} ${imageNumber} 0 R >> >> /Contents ${contentNumber} 0 R >>`;
+        objects[contentNumber] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+        objects[imageNumber] = [
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`,
+          image.bytes,
+          "\nendstream",
+        ];
+
+        pageObjectNumbers.push(pageNumber);
+      });
+
+      objects[2] = `<< /Type /Pages /Count ${pageObjectNumbers.length} /Kids [${pageObjectNumbers.map(number => `${number} 0 R`).join(" ")}] >>`;
+
+      const parts = [];
+      let byteOffset = 0;
+      const offsets = [0];
+
+      byteOffset += pushPart(parts, "%PDF-1.4\n%Image to PDF\n");
+      for (let i = 1; i < objects.length; i += 1) {
+        offsets[i] = byteOffset;
+        byteOffset += pushPart(parts, `${i} 0 obj\n`);
+        if (Array.isArray(objects[i])) {
+          for (const part of objects[i]) {
+            byteOffset += pushPart(parts, part);
+          }
+        } else {
+          byteOffset += pushPart(parts, objects[i]);
+        }
+        byteOffset += pushPart(parts, "\nendobj\n");
+      }
+
+      const xrefOffset = byteOffset;
+      let trailer = `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+      for (let i = 1; i < objects.length; i += 1) {
+        trailer += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+      }
+      trailer += `trailer\n<< /Size ${objects.length} /Root 1 0 R /Info << /Producer (${escapePdfText("Image to PDF")}) >> >>\nstartxref\n${xrefOffset}\n%%EOF`;
+      parts.push(trailer);
+
+      return new Blob(parts, { type: "application/pdf" });
+    }
+
+    async function convert() {
+      if (images.length === 0) return;
+
+      convertButton.disabled = true;
+      setStatus("Membuat PDF...");
+
+      try {
+        const renderedImages = [];
+        for (const image of images) {
+          renderedImages.push(await readImageAsJpeg(image.file));
+        }
+
+        const blob = buildPdf(renderedImages);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = normalizeFileName(fileNameInput.value);
+        link.click();
+        URL.revokeObjectURL(url);
+        setStatus("PDF berhasil dibuat.");
+      } catch (error) {
+        setStatus(`Gagal membuat PDF: ${error.message}`);
+      } finally {
+        convertButton.disabled = images.length === 0;
+      }
+    }
+
+    fileInput.addEventListener("change", event => addFiles(event.target.files));
+    convertButton.addEventListener("click", convert);
+    clearButton.addEventListener("click", () => {
+      images.splice(0).forEach(image => URL.revokeObjectURL(image.url));
+      renderList();
+      setStatus("Pilih gambar untuk mulai membuat PDF.");
+    });
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropZone.classList.add("dragging");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropZone.classList.remove("dragging");
+      });
+    });
+
+    dropZone.addEventListener("drop", event => addFiles(event.dataTransfer.files));
+
+    renderList();
+  </script>
+</body>
+</html>
