@@ -89,6 +89,8 @@ python bot.py
 4. Kirim `/cancel` untuk membatalkan antrean gambar.
 5. Kirim `/status` untuk melihat jumlah gambar yang sudah diterima.
 
+Nama PDF mengikuti nama gambar pertama yang dikirim. Jika gambar dikirim sebagai foto Telegram tanpa nama file asli, bot memakai nama seperti `gambar-1.pdf`.
+
 ### Jalankan 24 Jam Dengan PM2
 
 Install PM2 jika belum ada:

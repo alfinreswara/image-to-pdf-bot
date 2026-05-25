@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -25,12 +26,31 @@ from image_to_pdf import SUPPORTED_EXTENSIONS, convert_images_to_pdf
 BASE_DIR = Path(__file__).resolve().parent
 SESSION_DIR = BASE_DIR / "telegram_sessions"
 MAX_IMAGES_PER_SESSION = 50
+FALLBACK_IMAGE_NAME = "gambar"
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+
+def safe_filename(file_name: str) -> str:
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "-", file_name).strip(" .")
+    return cleaned or f"{FALLBACK_IMAGE_NAME}.jpg"
+
+
+def original_name_from_saved_path(path: Path) -> str:
+    prefix_length = len("001-") + 32 + len("-")
+    if len(path.name) > prefix_length:
+        return path.name[prefix_length:]
+    return path.name
+
+
+def pdf_filename_from_first_image(path: Path) -> str:
+    original_name = original_name_from_saved_path(path)
+    stem = Path(original_name).stem.strip() or FALLBACK_IMAGE_NAME
+    return safe_filename(f"{stem}.pdf")
 
 
 def get_user_dir(user_id: int) -> Path:
@@ -107,18 +127,19 @@ async def save_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     if message.photo:
         telegram_file = await message.photo[-1].get_file()
-        suffix = ".jpg"
+        original_name = f"{FALLBACK_IMAGE_NAME}-{len(image_paths) + 1}.jpg"
     elif message.document and document_is_supported_image(message.document):
         telegram_file = await message.document.get_file()
-        suffix = Path(message.document.file_name or "").suffix.lower() or ".jpg"
+        original_name = message.document.file_name or f"{FALLBACK_IMAGE_NAME}-{len(image_paths) + 1}.jpg"
+        suffix = Path(original_name).suffix.lower() or ".jpg"
         if suffix not in SUPPORTED_EXTENSIONS:
-            suffix = ".jpg"
+            original_name = f"{Path(original_name).stem}.jpg"
     else:
         await message.reply_text("File itu belum didukung. Kirim gambar JPG, PNG, WEBP, BMP, GIF, atau TIFF.")
         return
 
     next_number = len(image_paths) + 1
-    output_path = user_dir / f"{next_number:03d}-{uuid.uuid4().hex}{suffix}"
+    output_path = user_dir / f"{next_number:03d}-{uuid.uuid4().hex}-{safe_filename(original_name)}"
 
     await telegram_file.download_to_drive(output_path)
     await message.reply_text(
@@ -135,6 +156,7 @@ async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     output_path = get_user_dir(user_id) / "hasil.pdf"
+    pdf_filename = pdf_filename_from_first_image(image_paths[0])
 
     await update.message.chat.send_action(ChatAction.UPLOAD_DOCUMENT)
 
@@ -143,7 +165,7 @@ async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         with output_path.open("rb") as pdf_file:
             await update.message.reply_document(
                 document=pdf_file,
-                filename="hasil.pdf",
+                filename=pdf_filename,
                 caption=f"PDF selesai dibuat dari {len(image_paths)} gambar.",
             )
     except Exception:
